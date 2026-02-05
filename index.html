@@ -484,7 +484,7 @@ async function apiPost(url, body) {
 async function fetchProperties() {
   showLoading('Récupération de vos propriétés Search Console...');
   try {
-    const data = await apiGet('https://searchconsole.googleapis.com/webmasters/v1/sites');
+    const data = await apiGet('https://gsc-proxy.username.workers.dev/gsc/webmasters/v1/site');
     const sites = data.siteEntry || [];
     if (sites.length === 0) {
       showError("Aucune propriété trouvée dans votre Search Console. Vérifiez que votre compte a au moins un site vérifié.");
@@ -540,7 +540,7 @@ async function onPropertyChange() {
     };
 
     const data = await apiPost(
-      `https://searchconsole.googleapis.com/webmasters/v1/sites/${encodeURIComponent(siteUrl)}/searchAnalytics/query`,
+      `https://gsc-proxy.username.workers.dev/gsc/webmasters/v1/sites/${encodeURIComponent(siteUrl)}/searchAnalytics/query`,
       body
     );
 
