@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LinkWeaver — Maillage interne automatique via Search Console</title>
+  <meta name="description" content="Connectez votre Google Search Console, collez votre texte, et obtenez automatiquement un contenu enrichi en liens internes vers vos pages positionnées." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+
+  <!-- ============================================================
+       ⚠️  CONFIGURATION — Remplace par ton Client ID Google OAuth
+       ============================================================ -->
+  <meta name="google-client-id" content="466608421168-cd50n5idr75fft9vq5geonn99tua6q42.apps.googleusercontent.com" />
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0f0d;
+      --accent: #2dd4a0;
+      --accent-dim: rgba(45,212,160,0.15);
+      --accent-faint: rgba(45,212,160,0.06);
+      --accent-border: rgba(45,212,160,0.1);
+      --accent-border-hover: rgba(45,212,160,0.3);
+      --text: #e8efe9;
+      --text-dim: #6b7b75;
+      --text-muted: #4a5a54;
+      --text-ghost: #3a4a44;
+      --mono: 'Space Mono', monospace;
+      --sans: 'DM Sans', sans-serif;
+    }
+
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Grid background */
+    .grid-bg {
+      position: fixed; inset: 0; z-index: 0;
+      background:
+        radial-gradient(ellipse 80% 60% at 20% 10%, rgba(45,212,160,0.07) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 50% at 80% 90%, rgba(16,185,129,0.05) 0%, transparent 60%),
+        var(--bg);
+    }
+    .grid-bg::after {
+      content: ''; position: absolute; inset: 0;
+      background-image:
+        linear-gradient(rgba(45,212,160,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(45,212,160,0.04) 1px, transparent 1px);
+      background-size: 60px 60px;
+    }
+
+    .container { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; padding: 0 32px; }
+
+    /* Animations */
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes pulse { 0%,100% { opacity:.6; } 50% { opacity:1; } }
+    .fade-in { animation: fadeIn .6s ease both; }
+    .fade-d1 { animation-delay: .1s; }
+    .fade-d2 { animation-delay: .2s; }
+    .fade-d3 { animation-delay: .3s; }
+    .fade-d4 { animation-delay: .4s; }
+    .fade-d5 { animation-delay: .5s; }
+
+    /* Pill */
+    .pill {
+      display: inline-block; padding: 6px 16px; border-radius: 999px;
+      border: 1px solid rgba(45,212,160,0.25); color: var(--accent);
+      font-size: 12px; font-family: var(--mono); letter-spacing: .08em; text-transform: uppercase;
+    }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 14px 32px; border-radius: 10px; border: none;
+      font-size: 14px; font-family: var(--mono); font-weight: 600;
+      cursor: pointer; transition: all .25s ease; text-decoration: none;
+    }
+    .btn-primary { background: var(--accent-dim); color: var(--accent); }
+    .btn-primary:hover { background: var(--accent); color: var(--bg); transform: translateY(-2px); box-shadow: 0 8px 32px rgba(45,212,160,.3); }
+    .btn-ghost { background: transparent; border: 1px solid rgba(45,212,160,.2); color: var(--text-dim); font-family: var(--sans); }
+    .btn-ghost:hover { background: var(--accent-faint); border-color: var(--accent-border-hover); color: var(--accent); }
+    .btn-sm { padding: 8px 18px; font-size: 12px; border-radius: 8px; }
+    .btn:disabled { opacity: .35; cursor: not-allowed; transform: none !important; box-shadow: none !important; }
+
+    /* Nav */
+    nav { display: flex; justify-content: space-between; align-items: center; padding: 24px 0; }
+    .logo { display: flex; align-items: center; gap: 10px; }
+    .logo-icon { width: 32px; height: 32px; border-radius: 8px; background: linear-gradient(135deg, var(--accent), #10b981); display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700; color: var(--bg); }
+    .logo-text { font-weight: 700; font-size: 18px; letter-spacing: -.02em; }
+    .nav-actions { display: flex; gap: 12px; }
+
+    /* Hero */
+    .hero { text-align: center; padding: 80px 0 60px; }
+    .hero h1 { font-size: clamp(38px, 5.5vw, 68px); font-weight: 700; line-height: 1.05; margin-top: 32px; letter-spacing: -.03em; }
+    .hero h1 .highlight { color: var(--accent); }
+    .hero p { font-size: 18px; color: var(--text-dim); max-width: 600px; margin: 28px auto 0; line-height: 1.7; }
+    .hero-actions { display: flex; gap: 16px; justify-content: center; margin-top: 48px; flex-wrap: wrap; }
+
+    /* Steps */
+    .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; padding: 40px 0 80px; }
+    .step-card {
+      background: var(--accent-faint); border: 1px solid rgba(45,212,160,.08);
+      border-radius: 16px; padding: 32px 28px; transition: all .4s ease;
+    }
+    .step-card:hover { border-color: var(--accent-border-hover); background: rgba(45,212,160,.08); }
+    .step-head { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+    .step-icon { font-size: 24px; }
+    .step-num { font-family: var(--mono); font-size: 11px; color: rgba(45,212,160,.4); letter-spacing: .1em; }
+    .step-card h3 { font-size: 18px; font-weight: 600; margin-bottom: 8px; letter-spacing: -.01em; }
+    .step-card p { font-size: 14px; color: var(--text-dim); line-height: 1.6; }
+
+    /* Footer */
+    .footer { text-align: center; padding: 40px 0; border-top: 1px solid rgba(45,212,160,.06); }
+    .footer p { font-family: var(--mono); font-size: 11px; color: var(--text-muted); letter-spacing: .1em; text-transform: uppercase; }
+
+    /* ---- TOOL VIEW ---- */
+    .topbar { display: flex; justify-content: space-between; align-items: center; padding: 24px 0 32px; flex-wrap: wrap; gap: 12px; }
+    .topbar-left { display: flex; align-items: center; gap: 16px; }
+    .back-btn { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 14px; font-family: var(--sans); transition: color .2s; }
+    .back-btn:hover { color: var(--accent); }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); animation: pulse 2s infinite; display: inline-block; }
+    .status-text { font-size: 12px; font-family: var(--mono); color: var(--text-muted); }
+    .divider { width: 1px; height: 20px; background: var(--accent-border); }
+
+    /* Property selector */
+    .property-select {
+      width: 100%; padding: 14px 20px; background: var(--accent-faint);
+      border: 1px solid var(--accent-border); border-radius: 12px;
+      color: var(--text); font-size: 14px; font-family: var(--sans);
+      appearance: none; cursor: pointer;
+    }
+    .property-select:focus { outline: none; border-color: var(--accent-border-hover); }
+    .property-select option { background: var(--bg); color: var(--text); }
+
+    /* Textarea */
+    .text-input {
+      width: 100%; min-height: 320px; padding: 24px;
+      background: var(--accent-faint); border: 1px solid var(--accent-border);
+      border-radius: 16px; color: var(--text); font-size: 15px; line-height: 1.8;
+      font-family: var(--sans); resize: vertical;
+    }
+    .text-input:focus { outline: none; border-color: rgba(45,212,160,.4); }
+    .text-input::placeholder { color: var(--text-ghost); }
+    .char-count { position: absolute; bottom: 16px; right: 16px; font-size: 11px; font-family: var(--mono); color: var(--text-ghost); }
+
+    /* Stats */
+    .stats { display: flex; gap: 16px; margin-bottom: 32px; flex-wrap: wrap; }
+    .stat-card { background: var(--accent-faint); border: 1px solid var(--accent-border); border-radius: 12px; padding: 16px 20px; flex: 1 1 140px; }
+    .stat-label { font-size: 11px; color: var(--text-dim); font-family: var(--mono); text-transform: uppercase; letter-spacing: .1em; margin-bottom: 6px; }
+    .stat-value { font-size: 28px; font-weight: 700; }
+    .stat-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+    /* Results */
+    .section-title { font-size: 16px; font-weight: 600; margin-bottom: 12px; }
+    .section-title .dot { color: var(--accent); margin-right: 8px; }
+
+    .result-box {
+      background: rgba(10,15,13,.6); border: 1px solid var(--accent-border);
+      border-radius: 16px; padding: 28px; font-size: 15px; line-height: 2;
+      max-height: 420px; overflow-y: auto;
+    }
+    .result-box a {
+      color: var(--accent); text-decoration: underline;
+      text-underline-offset: 3px; text-decoration-color: rgba(45,212,160,.4);
+      font-weight: 500; transition: all .2s;
+    }
+    .result-box a:hover { text-decoration-color: var(--accent); }
+
+    /* Table */
+    .match-table { background: rgba(10,15,13,.6); border: 1px solid var(--accent-border); border-radius: 16px; overflow: hidden; }
+    .match-header, .match-row { display: grid; grid-template-columns: 1fr 1.4fr 70px 70px; gap: 12px; padding: 12px 20px; align-items: center; }
+    .match-header { border-bottom: 1px solid var(--accent-border); font-size: 10px; font-family: var(--mono); color: var(--text-muted); text-transform: uppercase; letter-spacing: .1em; }
+    .match-row { border-bottom: 1px solid rgba(45,212,160,.04); font-size: 13px; animation: fadeIn .3s ease both; }
+    .match-row:last-child { border-bottom: none; }
+    .match-query { color: var(--accent); font-weight: 600; font-family: var(--mono); font-size: 12px; }
+    .match-page { color: var(--text-dim); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .match-center { text-align: center; font-family: var(--mono); font-size: 12px; }
+
+    /* Empty state */
+    .empty { text-align: center; padding: 60px 40px; background: var(--accent-faint); border-radius: 16px; border: 1px solid rgba(45,212,160,.06); }
+    .empty .icon { font-size: 48px; margin-bottom: 16px; }
+    .empty h3 { font-size: 18px; font-weight: 600; margin-bottom: 8px; }
+    .empty p { color: var(--text-dim); font-size: 14px; }
+
+    /* Loading */
+    .spinner { display: inline-block; width: 18px; height: 18px; border: 2px solid rgba(45,212,160,.2); border-top-color: var(--accent); border-radius: 50%; animation: spin .6s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-overlay { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 80px 0; }
+    .loading-text { font-family: var(--mono); font-size: 13px; color: var(--text-dim); }
+
+    /* Error */
+    .error-banner {
+      background: rgba(239,68,68,.08); border: 1px solid rgba(239,68,68,.2);
+      border-radius: 12px; padding: 16px 20px; margin-bottom: 24px;
+      color: #f87171; font-size: 13px; display: flex; gap: 12px; align-items: flex-start;
+    }
+
+    /* Responsive */
+    @media (max-width: 640px) {
+      .container { padding: 0 16px; }
+      .hero { padding: 40px 0 30px; }
+      .hero-actions { flex-direction: column; align-items: center; }
+      .btn { width: 100%; justify-content: center; }
+      .match-header, .match-row { grid-template-columns: 1fr 1fr 60px 60px; font-size: 11px; padding: 10px 14px; }
+      .stats { flex-direction: column; }
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(45,212,160,.15); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(45,212,160,.3); }
+
+    /* Hidden utility */
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+<div class="grid-bg"></div>
+
+<!-- ==================== LANDING PAGE ==================== -->
+<div id="landing">
+  <div class="container">
+    <nav>
+      <div class="logo">
+        <div class="logo-icon">⟁</div>
+        <span class="logo-text">LinkWeaver</span>
+      </div>
+      <div class="nav-actions">
+        <button class="btn btn-ghost btn-sm" onclick="startDemo()">Démo</button>
+        <button class="btn btn-primary btn-sm" onclick="startGoogleAuth()">Connexion Google →</button>
+      </div>
+    </nav>
+
+    <div class="hero">
+      <div class="fade-in"><span class="pill">Search Console × Maillage Interne</span></div>
+      <h1 class="fade-in fade-d1">Transformez vos textes<br>en <span class="highlight">machines à liens</span></h1>
+      <p class="fade-in fade-d2">Collez votre contenu, connectez votre Search Console. L'outil détecte automatiquement les requêtes sur lesquelles vous êtes positionné et insère les liens internes correspondants.</p>
+      <div class="hero-actions fade-in fade-d3">
+        <button class="btn btn-primary" onclick="startGoogleAuth()">🔗 Connecter ma Search Console</button>
+        <button class="btn btn-ghost" onclick="startDemo()">Essayer avec des données démo</button>
+      </div>
+    </div>
+
+    <div class="steps">
+      <div class="step-card fade-in fade-d3">
+        <div class="step-head"><span class="step-icon">🔌</span><span class="step-num">01</span></div>
+        <h3>Connectez</h3>
+        <p>Liez votre Google Search Console en un clic via OAuth. Aucune donnée stockée.</p>
+      </div>
+      <div class="step-card fade-in fade-d4">
+        <div class="step-head"><span class="step-icon">📝</span><span class="step-num">02</span></div>
+        <h3>Collez votre texte</h3>
+        <p>Insérez l'article ou la page que vous souhaitez enrichir en liens internes.</p>
+      </div>
+      <div class="step-card fade-in fade-d4">
+        <div class="step-head"><span class="step-icon">🔍</span><span class="step-num">03</span></div>
+        <h3>Analyse auto</h3>
+        <p>L'outil croise votre texte avec vos requêtes positionnées dans la Search Console.</p>
+      </div>
+      <div class="step-card fade-in fade-d5">
+        <div class="step-head"><span class="step-icon">✨</span><span class="step-num">04</span></div>
+        <h3>Récupérez</h3>
+        <p>Copiez votre texte enrichi avec les balises &lt;a&gt; prêtes à coller dans votre CMS.</p>
+      </div>
+    </div>
+
+    <div class="footer">
+      <p>Gratuit • Open Source • Vos données restent dans votre navigateur</p>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== TOOL PAGE ==================== -->
+<div id="tool" class="hidden">
+  <div class="container">
+    <!-- Top bar -->
+    <div class="topbar">
+      <div class="topbar-left">
+        <button class="back-btn" onclick="goBack()">← Retour</button>
+        <div class="divider"></div>
+        <span class="status-dot"></span>
+        <span class="status-text" id="statusText">CONNECTÉ</span>
+      </div>
+      <span class="pill" id="queryCount">0 requêtes</span>
+    </div>
+
+    <!-- Error banner -->
+    <div id="errorBanner" class="error-banner hidden">
+      <span>⚠️</span>
+      <span id="errorText"></span>
+    </div>
+
+    <!-- Property selector (real mode) -->
+    <div id="propertySection" class="hidden" style="margin-bottom:24px;">
+      <label style="font-size:12px;font-family:var(--mono);color:var(--text-dim);text-transform:uppercase;letter-spacing:.1em;display:block;margin-bottom:8px;">Propriété Search Console</label>
+      <select id="propertySelect" class="property-select" onchange="onPropertyChange()">
+        <option value="">— Sélectionnez une propriété —</option>
+      </select>
+    </div>
+
+    <!-- Loading -->
+    <div id="loadingSection" class="loading-overlay hidden">
+      <div class="spinner"></div>
+      <div class="loading-text" id="loadingText">Récupération des données Search Console...</div>
+    </div>
+
+    <!-- Input section -->
+    <div id="inputSection" class="hidden">
+      <h2 style="font-size:28px;font-weight:700;letter-spacing:-.02em;margin-bottom:8px;">Collez votre texte</h2>
+      <p style="color:var(--text-dim);font-size:14px;margin-bottom:24px;">L'outil va identifier les requêtes de votre Search Console présentes dans votre contenu et y insérer des liens internes.</p>
+      <div style="position:relative;">
+        <textarea id="textInput" class="text-input" placeholder="Collez ici votre article ou texte de page...
+
+Exemple pour la démo : « Le référencement naturel repose sur plusieurs piliers fondamentaux. L'optimisation SEO de votre site passe par un bon maillage interne, des balises meta bien rédigées, et une attention particulière à la vitesse de chargement. N'oubliez pas de configurer votre Search Console et de soumettre votre sitemap XML pour faciliter l'indexation Google. Une bonne stratégie de contenu, associée à des backlinks de qualité et à l'optimisation de vos Core Web Vitals, vous permettra d'améliorer votre taux de rebond et d'apparaître en rich snippets. Pensez aussi à cibler des mots-clés de longue traîne et à réaliser un audit SEO régulier. »"></textarea>
+        <div class="char-count" id="charCount">0 caractères</div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin-top:20px;">
+        <button id="analyzeBtn" class="btn btn-primary" onclick="analyze()" disabled>Analyser le texte →</button>
+      </div>
+    </div>
+
+    <!-- Results section -->
+    <div id="resultsSection" class="hidden">
+      <!-- Stats -->
+      <div class="stats" id="statsRow"></div>
+
+      <!-- Enriched text -->
+      <div style="margin-bottom:28px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+          <h3 class="section-title"><span class="dot">◉</span>Texte enrichi</h3>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-ghost btn-sm" onclick="resetTool()">← Modifier</button>
+            <button class="btn btn-primary btn-sm" id="copyBtn" onclick="copyHTML()">Copier le HTML</button>
+          </div>
+        </div>
+        <div class="result-box" id="enrichedText"></div>
+      </div>
+
+      <!-- Matches table -->
+      <div id="matchesSection"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+//  CONFIG — Récupère le Client ID depuis la balise meta
+// ============================================================
+const CLIENT_ID = document.querySelector('meta[name="google-client-id"]').content;
+const SCOPES = 'https://www.googleapis.com/auth/webmasters.readonly';
+const DISCOVERY_DOC = 'https://searchconsole.googleapis.com/$discovery/rest?version=v1';
+
+// ============================================================
+//  STATE
+// ============================================================
+let tokenClient = null;
+let accessToken = null;
+let gscData = [];
+let matches = [];
+let isDemo = false;
+let currentText = '';
+
+const MOCK_DATA = [
+  { query: "optimisation seo", page: "https://example.com/guide-seo", clicks: 342, impressions: 8420, ctr: 0.041, position: 4.2 },
+  { query: "référencement naturel", page: "https://example.com/referencement", clicks: 289, impressions: 7100, ctr: 0.041, position: 5.1 },
+  { query: "maillage interne", page: "https://example.com/maillage-interne", clicks: 156, impressions: 3200, ctr: 0.049, position: 3.8 },
+  { query: "balises meta", page: "https://example.com/balises-meta", clicks: 201, impressions: 5600, ctr: 0.036, position: 6.3 },
+  { query: "vitesse de chargement", page: "https://example.com/performance-web", clicks: 178, impressions: 4300, ctr: 0.041, position: 4.7 },
+  { query: "search console", page: "https://example.com/google-search-console", clicks: 445, impressions: 12000, ctr: 0.037, position: 3.2 },
+  { query: "stratégie de contenu", page: "https://example.com/strategie-contenu", clicks: 234, impressions: 6800, ctr: 0.034, position: 5.5 },
+  { query: "longue traîne", page: "https://example.com/longue-traine-seo", clicks: 98, impressions: 2100, ctr: 0.047, position: 4.1 },
+  { query: "audit seo", page: "https://example.com/audit-seo", clicks: 312, impressions: 9500, ctr: 0.033, position: 5.9 },
+  { query: "backlinks", page: "https://example.com/guide-backlinks", clicks: 267, impressions: 7800, ctr: 0.034, position: 4.4 },
+  { query: "core web vitals", page: "https://example.com/core-web-vitals", clicks: 189, impressions: 4100, ctr: 0.046, position: 3.5 },
+  { query: "sitemap xml", page: "https://example.com/sitemap-guide", clicks: 134, impressions: 3400, ctr: 0.039, position: 5.2 },
+  { query: "taux de rebond", page: "https://example.com/taux-rebond", clicks: 145, impressions: 3800, ctr: 0.038, position: 6.1 },
+  { query: "rich snippets", page: "https://example.com/rich-snippets", clicks: 167, impressions: 4500, ctr: 0.037, position: 4.8 },
+  { query: "indexation google", page: "https://example.com/indexation", clicks: 223, impressions: 6200, ctr: 0.036, position: 5.3 },
+];
+
+// ============================================================
+//  DOM REFS
+// ============================================================
+const $ = id => document.getElementById(id);
+
+// ============================================================
+//  NAVIGATION
+// ============================================================
+function showLanding() { $('landing').classList.remove('hidden'); $('tool').classList.add('hidden'); }
+function showTool() { $('landing').classList.add('hidden'); $('tool').classList.remove('hidden'); }
+
+function goBack() {
+  showLanding();
+  resetTool();
+  accessToken = null;
+  gscData = [];
+  isDemo = false;
+}
+
+// ============================================================
+//  DEMO MODE
+// ============================================================
+function startDemo() {
+  isDemo = true;
+  gscData = [...MOCK_DATA];
+  showTool();
+  $('statusText').textContent = 'MODE DÉMO';
+  $('queryCount').textContent = `${gscData.length} requêtes démo`;
+  $('propertySection').classList.add('hidden');
+  $('loadingSection').classList.add('hidden');
+  $('inputSection').classList.remove('hidden');
+  $('resultsSection').classList.add('hidden');
+}
+
+// ============================================================
+//  GOOGLE OAUTH — Uses Google Identity Services (GIS)
+// ============================================================
+function startGoogleAuth() {
+  if (!CLIENT_ID || CLIENT_ID.length < 10) {
+    alert("⚠️ Client ID Google OAuth manquant.");
+    return;
+  }
+
+  // Load the GIS library if not already loaded
+  if (!window.google?.accounts?.oauth2) {
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.onload = () => initGISAndAuth();
+    document.head.appendChild(script);
+  } else {
+    initGISAndAuth();
+  }
+}
+
+function initGISAndAuth() {
+  tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: CLIENT_ID,
+    scope: SCOPES,
+    callback: handleAuthResponse,
+  });
+  tokenClient.requestAccessToken();
+}
+
+function handleAuthResponse(response) {
+  if (response.error) {
+    showError(`Erreur d'authentification : ${response.error}`);
+    return;
+  }
+  accessToken = response.access_token;
+  isDemo = false;
+  showTool();
+  $('statusText').textContent = 'SEARCH CONSOLE CONNECTÉE';
+  hideError();
+  fetchProperties();
+}
+
+// ============================================================
+//  SEARCH CONSOLE API
+// ============================================================
+async function apiGet(url) {
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+  if (!res.ok) throw new Error(`API error ${res.status}: ${await res.text()}`);
+  return res.json();
+}
+
+async function apiPost(url, body) {
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`API error ${res.status}: ${await res.text()}`);
+  return res.json();
+}
+
+async function fetchProperties() {
+  showLoading('Récupération de vos propriétés Search Console...');
+  try {
+    const data = await apiGet('https://searchconsole.googleapis.com/webmasters/v1/sites');
+    const sites = data.siteEntry || [];
+    if (sites.length === 0) {
+      showError("Aucune propriété trouvée dans votre Search Console. Vérifiez que votre compte a au moins un site vérifié.");
+      hideLoading();
+      $('inputSection').classList.add('hidden');
+      return;
+    }
+
+    const select = $('propertySelect');
+    select.innerHTML = '<option value="">— Sélectionnez une propriété —</option>';
+    sites.forEach(site => {
+      const opt = document.createElement('option');
+      opt.value = site.siteUrl;
+      opt.textContent = site.siteUrl;
+      select.appendChild(opt);
+    });
+
+    $('propertySection').classList.remove('hidden');
+    hideLoading();
+
+    // Auto-select if only one property
+    if (sites.length === 1) {
+      select.value = sites[0].siteUrl;
+      onPropertyChange();
+    }
+  } catch (err) {
+    showError(`Erreur lors de la récupération des propriétés : ${err.message}`);
+    hideLoading();
+  }
+}
+
+async function onPropertyChange() {
+  const siteUrl = $('propertySelect').value;
+  if (!siteUrl) { gscData = []; $('inputSection').classList.add('hidden'); return; }
+
+  showLoading('Récupération des requêtes et pages positionnées (28 derniers jours)...');
+  $('inputSection').classList.add('hidden');
+
+  try {
+    // Fetch up to 5000 rows of search analytics data
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(endDate.getDate() - 28);
+
+    const fmt = d => d.toISOString().split('T')[0];
+
+    const body = {
+      startDate: fmt(startDate),
+      endDate: fmt(endDate),
+      dimensions: ['query', 'page'],
+      rowLimit: 5000,
+      startRow: 0,
+    };
+
+    const data = await apiPost(
+      `https://searchconsole.googleapis.com/webmasters/v1/sites/${encodeURIComponent(siteUrl)}/searchAnalytics/query`,
+      body
+    );
+
+    const rows = data.rows || [];
+
+    // Deduplicate: keep the best page per query (highest clicks)
+    const queryMap = new Map();
+    for (const row of rows) {
+      const query = row.keys[0];
+      const page = row.keys[1];
+      const existing = queryMap.get(query);
+      if (!existing || row.clicks > existing.clicks) {
+        queryMap.set(query, {
+          query,
+          page,
+          clicks: row.clicks,
+          impressions: row.impressions,
+          ctr: row.ctr,
+          position: row.position,
+        });
+      }
+    }
+
+    gscData = Array.from(queryMap.values());
+    $('queryCount').textContent = `${gscData.length} requêtes`;
+    hideLoading();
+    $('inputSection').classList.remove('hidden');
+
+    if (gscData.length === 0) {
+      showError("Aucune donnée de recherche trouvée pour cette propriété sur les 28 derniers jours.");
+    }
+  } catch (err) {
+    showError(`Erreur lors de la récupération des données : ${err.message}`);
+    hideLoading();
+  }
+}
+
+// ============================================================
+//  TEXT ANALYSIS
+// ============================================================
+function normalize(text) {
+  return text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+}
+
+function findMatches(text, data) {
+  const results = [];
+  const normalizedText = normalize(text);
+  const sorted = [...data].sort((a, b) => b.query.length - a.query.length);
+  const usedRanges = [];
+  const isBoundary = c => /[\s.,;:!?'"()\-–—«»\n\r]/.test(c);
+
+  for (const row of sorted) {
+    const nq = normalize(row.query);
+    if (nq.length < 3) continue;
+
+    let searchFrom = 0;
+    while (true) {
+      const idx = normalizedText.indexOf(nq, searchFrom);
+      if (idx === -1) break;
+      const end = idx + nq.length;
+      const before = idx > 0 ? normalizedText[idx - 1] : ' ';
+      const after = end < normalizedText.length ? normalizedText[end] : ' ';
+
+      if (isBoundary(before) && isBoundary(after)) {
+        const overlaps = usedRanges.some(r => idx < r.end && end > r.start);
+        if (!overlaps) {
+          results.push({
+            start: idx, end,
+            originalText: text.substring(idx, end),
+            query: row.query, page: row.page,
+            clicks: row.clicks, position: row.position,
+            ctr: row.ctr, impressions: row.impressions,
+          });
+          usedRanges.push({ start: idx, end });
+          break;
+        }
+      }
+      searchFrom = idx + 1;
+    }
+  }
+  return results.sort((a, b) => a.start - b.start);
+}
+
+function escapeHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function buildEnrichedHTML(text, matches) {
+  if (!matches.length) return escapeHtml(text);
+  let result = '', last = 0;
+  for (const m of matches) {
+    result += escapeHtml(text.substring(last, m.start));
+    result += `<a href="${escapeHtml(m.page)}" title="Requête: ${escapeHtml(m.query)} | Pos: ${m.position.toFixed(1)} | Clics: ${m.clicks}" target="_blank" rel="noopener">${escapeHtml(m.originalText)}</a>`;
+    last = m.end;
+  }
+  result += escapeHtml(text.substring(last));
+  return result;
+}
+
+// ============================================================
+//  TOOL ACTIONS
+// ============================================================
+function analyze() {
+  currentText = $('textInput').value;
+  if (!currentText.trim()) return;
+  matches = findMatches(currentText, gscData);
+  const enriched = buildEnrichedHTML(currentText, matches);
+
+  // Stats
+  const words = currentText.split(/\s+/).length;
+  const avgPos = matches.length > 0 ? (matches.reduce((s,m) => s + m.position, 0) / matches.length).toFixed(1) : '–';
+  $('statsRow').innerHTML = `
+    <div class="stat-card"><div class="stat-label">Liens insérés</div><div class="stat-value">${matches.length}</div></div>
+    <div class="stat-card"><div class="stat-label">Mots analysés</div><div class="stat-value">${words}</div></div>
+    <div class="stat-card"><div class="stat-label">Taux de maillage</div><div class="stat-value">${((matches.length/words)*100).toFixed(1)}%</div><div class="stat-sub">liens / mots</div></div>
+    <div class="stat-card"><div class="stat-label">Position moy.</div><div class="stat-value">${avgPos}</div></div>
+  `;
+
+  // Enriched text
+  $('enrichedText').innerHTML = enriched;
+
+  // Matches table
+  if (matches.length > 0) {
+    let table = `<h3 class="section-title"><span class="dot">◎</span>Requêtes détectées (${matches.length})</h3>`;
+    table += '<div class="match-table"><div class="match-header"><div>Requête</div><div>Page liée</div><div style="text-align:center">Position</div><div style="text-align:center">Clics</div></div>';
+    matches.forEach((m, i) => {
+      table += `<div class="match-row" style="animation-delay:${i*0.04}s">
+        <div class="match-query">"${escapeHtml(m.query)}"</div>
+        <div class="match-page">${escapeHtml(m.page)}</div>
+        <div class="match-center">${m.position.toFixed(1)}</div>
+        <div class="match-center">${m.clicks}</div>
+      </div>`;
+    });
+    table += '</div>';
+    $('matchesSection').innerHTML = table;
+  } else {
+    $('matchesSection').innerHTML = `<div class="empty"><div class="icon">🔍</div><h3>Aucune correspondance trouvée</h3><p>Votre texte ne contient aucune des requêtes de votre Search Console.</p></div>`;
+  }
+
+  $('inputSection').classList.add('hidden');
+  $('resultsSection').classList.remove('hidden');
+}
+
+function copyHTML() {
+  let html = currentText;
+  const sorted = [...matches].sort((a, b) => b.start - a.start);
+  for (const m of sorted) {
+    html = html.substring(0, m.start) + `<a href="${m.page}">${m.originalText}</a>` + html.substring(m.end);
+  }
+  navigator.clipboard.writeText(html).then(() => {
+    $('copyBtn').textContent = '✓ Copié !';
+    setTimeout(() => { $('copyBtn').textContent = 'Copier le HTML'; }, 2000);
+  });
+}
+
+function resetTool() {
+  $('inputSection').classList.remove('hidden');
+  $('resultsSection').classList.add('hidden');
+  matches = [];
+}
+
+// ============================================================
+//  UI HELPERS
+// ============================================================
+function showLoading(text) { $('loadingSection').classList.remove('hidden'); $('loadingText').textContent = text; }
+function hideLoading() { $('loadingSection').classList.add('hidden'); }
+function showError(text) { $('errorBanner').classList.remove('hidden'); $('errorText').textContent = text; }
+function hideError() { $('errorBanner').classList.add('hidden'); }
+
+// Character count
+$('textInput').addEventListener('input', function() {
+  $('charCount').textContent = this.value.length + ' caractères';
+  $('analyzeBtn').disabled = !this.value.trim();
+});
+</script>
+
+</body>
+</html>
